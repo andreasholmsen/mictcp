@@ -1,7 +1,7 @@
 #include <mictcp.h>
 #include <api/mictcp_core.h>
 
-
+/*===========================Version 1: Phase de tranfert de données sans garantie de fiabilité=================================*/
 mic_tcp_sock tcp_sock;
 mic_tcp_pdu pdu;
 
@@ -28,7 +28,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
    
    addr.port = 8888;
    tcp_sock.fd = 1;
-   tcp_sock.state = IDLE;
+   tcp_sock.state = IDLE; //IDLE?
    tcp_sock.remote_addr = addr; // Remote ou local addr?
 
    return 0;
@@ -63,9 +63,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-   
     
-
     pdu.payload.data = mesg;
     pdu.payload.size = mesg_size;
 
