@@ -65,9 +65,12 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
 
-    sockets[socket].state = ESTABLISHED;
-
-    return 0;
+     if (sockets[socket].fd != socket){
+        return -1;
+    } else {
+        sockets[socket].local_addr = *addr;
+        return 0;
+    }
 }
 
 /*
