@@ -14,6 +14,7 @@ mic_tcp_sock sockets[100];
  * Permet de créer un socket entre l’application et MIC-TCP
  * Retourne le descripteur du socket ou bien -1 en cas d'erreur
  */
+
 int mic_tcp_socket(start_mode sm){
     int fd = 0;
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
@@ -39,6 +40,13 @@ int mic_tcp_socket(start_mode sm){
  */
 int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 {
+  
+    //addr.port = 8888;
+   //tcp_sock.fd = 1;
+   //tcp_sock.state = IDLE; //IDLE?
+   //tcp_sock.local_addr = addr;
+
+   return 0;
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     if (sockets[socket].fd != socket){
         return -1;
@@ -46,6 +54,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
         sockets[socket].local_addr = addr;
         return 0;
     }
+
 }
 
 /*
@@ -55,7 +64,10 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    return -1;
+
+    tcp_sock.state = ESTABLISHED;
+
+    return 0;
 }
 
 /*
@@ -66,6 +78,9 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr) //socket = fd
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     socket[socket].remote_addr = addr;
+    tcp_sock.remote_addr = addr;
+    tcp_sock.state = ESTABLISHED;
+
     return 0;
 }
 
@@ -106,7 +121,8 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 remote_addr 
     int effective_data_size = app_buffer_get(pdu.payload);
 
-    return effective_data_size; // TODO: Ou -1 si erreur
+    if (effective_data_size >= 0) return effective_data_size;
+    return -1;
 }
 
 /*
@@ -117,8 +133,8 @@ remote_addr
 int mic_tcp_close (int socket)
 {
     printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
-    //Change etat
-    return -1;
+    tcp_sock.state = CLOSING;
+    return 0;
 }
 
 /*
