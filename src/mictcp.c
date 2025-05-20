@@ -25,9 +25,9 @@ int mic_tcp_socket(start_mode sm){
             fd++;
         }
         //relier fd avec le nouveau socket crée/pret à être utilisé
-        socket[fd].fd = fd;
+        sockets[fd].fd = fd;
         //signaler l'utilisation du socket et renvoyer fd
-        socket[fd].state = IDLE;
+        sockets[fd].state = IDLE;
         return fd;
     } else {
         return -1;
@@ -65,7 +65,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
 
-    tcp_sock.state = ESTABLISHED;
+    sockets[socket].state = ESTABLISHED;
 
     return 0;
 }
@@ -77,9 +77,9 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr) //socket = fd 
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    socket[socket].remote_addr = addr;
-    tcp_sock.remote_addr = addr;
-    tcp_sock.state = ESTABLISHED;
+    sockets[socket].remote_addr = addr;
+    sockets[socket].remote_addr = addr;
+    sockets[socket].state = ESTABLISHED;
 
     return 0;
 }
@@ -97,11 +97,11 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     pdu.payload.size = mesg_size;
 
     //Config header
-    pdu.header.source_port = sockets[mic_sock].addr.port;
+    pdu.header.source_port = sockets[mic_sock].local_addr.port;
     pdu.header.dest_port = sockets[mic_sock].remote_addr.port;
     
     //Emission du pdu
-    int sent_size = IP_send(pdu, tcp_sock.remote_addr.ip_addr);
+    int sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
 
     return sent_size;
 }
@@ -115,10 +115,10 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    
+    mic_tcp_pdu pdu;
+
     pdu.payload.data = mesg;
     pdu.payload.size = max_mesg_size;
-remote_addr 
     int effective_data_size = app_buffer_get(pdu.payload);
 
     if (effective_data_size >= 0) return effective_data_size;
@@ -133,7 +133,7 @@ remote_addr
 int mic_tcp_close (int socket)
 {
     printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
-    tcp_sock.state = CLOSING;
+    sockets[socket].state = CLOSING;
     return 0;
 }
 
