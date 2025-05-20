@@ -1,14 +1,12 @@
 #include <mictcp.h>
 #include <api/mictcp_core.h>
+#include <stdio.h>
 
-//modifier tcp.sock
-//tester: make
-//./tsock.texte
-//push
-//tag
-
-//tableau des sockets pas encore utilisés
-mic_tcp_sock sockets[100];
+#define MAX_TIME 50 //us
+/*===============================Début variables globaux===============================*/
+mic_tcp_sock sockets[100]; //tableau des sockets pas encore utilisés
+int next_seq_num = 0;
+/*===============================Fin variables globaux=================================*/
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -49,7 +47,8 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 }
 
 /*
- * Met le socket en état d'acceptation de connexions
+ * Met le socket en état d'acceptation de connexions 
+ * On peut ajouter au state un état d'acceptation
  * Retourne 0 si succès, -1 si erreur
  */
 int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
@@ -89,9 +88,37 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     //Config header
     pdu.header.source_port = sockets[mic_sock].local_addr.port;
     pdu.header.dest_port = sockets[mic_sock].remote_addr.port;
-    
+    pdu.header.seq_num = next_seq_num;
+   
+    //Incrémenter prochain n. de seq à émettre
+    next_seq_num = (next_seq_num + 1)%2;
+
+     //Activation timer
+    unsigned long start = get_now_time_usec;
+
     //Emission du pdu
     int sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
+
+    //Attente de l'ACK
+    unsigned long end = get_now_time_usec;
+    if (end-start > MAX_TIME){
+        sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
+    } else {
+        
+    }
+    int ack_received = 0;
+    while (!ack_received){
+        IP_send();
+        while(end-start < MAX_TIME){
+            //recv ACK
+            //process_received_PDU
+            //if (ack_recu == ack_voulu){
+                //ack_received = 1;
+            //}
+        }
+    }
+
+    //printf("Temps d'emission : %lu",end-start);
 
     return sent_size;
 }
