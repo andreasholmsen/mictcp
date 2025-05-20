@@ -3,6 +3,7 @@
 
 #define NB_SOCKETS 100
 
+int ack_attendu = 0;
 
 
 //tableau des sockets pas encore utilisés
@@ -102,6 +103,7 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
     mic_tcp_pdu pdu;
 
+    
     pdu.payload.data = mesg;
     pdu.payload.size = max_mesg_size;
     int effective_data_size = app_buffer_get(pdu.payload);
@@ -130,9 +132,29 @@ int mic_tcp_close (int socket)
  */
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_ip_addr remote_addr)
 {
-    //TODO: Verifier que le port dans pdu.header est actuellement utilisé. Passé par un bind
-
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    app_buffer_put(pdu.payload);
+
+    if (pdu.header.seq_num == ack_attendu) {
+        app_buffer_put(pdu.payload);
+        int ack_envoye = (ack_attendu+1) % 2;
+        ack_attendu = ack_envoye; // Prochaine ack à attendre
+        
+
+        mic_tcp_header header = {pdu.header.dest_port, pdu.header.source_port, 0, ack_envoye, 0, 0, 0};
+        mic_tcp_payload payload = {NULL, 0};
+        mic_tcp_pdu pdu_envoye = {header, payload};
+
+        IP_send(pdu_envoye, remote_addr);
+
+
+    } 
+
+    
 
 }
+
+
+
+
+
+
