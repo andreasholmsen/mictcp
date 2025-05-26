@@ -1,9 +1,22 @@
 #include <mictcp.h>
 #include <api/mictcp_core.h>
+#include <stdio.h>
+#include <stdbool.h>
+
+
+
+//#define MAX_TIME 50 //us
+/*===============================Début variables globaux===============================*/
+mic_tcp_sock sockets[100]; //tableau des sockets pas encore utilisés
+int next_seq_num = 0;
+mic_tcp_pdu * pk;
+unsigned long MAX_TIME = 50;//us
+int ack_attendu = 0;
+/*===============================Fin variables globaux=================================*/
 
 #define NB_SOCKETS 100
 
-int ack_attendu = 0;
+
 
 
 //tableau des sockets pas encore utilisés
@@ -17,7 +30,6 @@ mic_tcp_sock sockets[NB_SOCKETS];
 int mic_tcp_socket(start_mode sm){
    
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-
     if (initialize_components(sm) == -1) return -1;
         
     //trouver le 1er socket non-utilisé = etat CLOSED
@@ -28,7 +40,6 @@ int mic_tcp_socket(start_mode sm){
     sockets[fd].fd = fd;
     sockets[fd].state = IDLE;
     return fd;
-
 }
 
 /*
@@ -46,14 +57,14 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 }
 
 /*
- * Met le socket en état d'acceptation de connexions
+ * Met le socket en état d'acceptation de connexions 
+ * On peut ajouter au state un état d'acceptation
  * Retourne 0 si succès, -1 si erreur
  */
 int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-
-    return 0;
+    return 0; //pas de phase d'etablissement de connexion à ce stade
 }
 
 /*
@@ -63,10 +74,13 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr) //socket = fd 
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    sockets[socket].remote_addr = addr;
-    sockets[socket].state = ESTABLISHED;
-
-    return 0;
+     if (sockets[socket].fd != socket){
+        return -1;
+    } else {
+        sockets[socket].remote_addr = addr;
+        sockets[socket].state = ESTABLISHED;
+        return 0;
+    }
 }
 
 /*
@@ -85,10 +99,30 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     //Config header
     pdu.header.source_port = sockets[mic_sock].local_addr.port;
     pdu.header.dest_port = sockets[mic_sock].remote_addr.port;
-    
+    pdu.header.seq_num = next_seq_num;
+   
+    //Incrémenter prochain n. de seq à émettre
+    next_seq_num = (next_seq_num + 1)%2;
+
+     //Activation timer
+    //unsigned long start = get_now_time_usec;
+
     //Emission du pdu
     int sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
 
+    //unsigned long current = get_now_time_usec;
+    bool ack_received = false;
+    while (!ack_received){ //Attente de l'ACK
+        int recv = IP_recv(pk,&sockets[mic_sock].local_addr.ip_addr,&sockets[mic_sock].remote_addr.ip_addr,MAX_TIME);
+        //Pas de PDU avant timeout
+        if (recv ==-1){
+            sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
+        } else if (recv == 0){ //reception pdu avant timeout
+            if (pk->header.ack == 1 && pk->header.ack_num == pdu.header.seq_num){
+                break;
+            }
+        }
+    }
     return sent_size;
 }
 
@@ -104,8 +138,12 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     mic_tcp_pdu pdu;
 
     
+    //déclaration struct pour stocker le message
+    mic_tcp_pdu pdu;
+
     pdu.payload.data = mesg;
     pdu.payload.size = max_mesg_size;
+
     int effective_data_size = app_buffer_get(pdu.payload);
 
     if (effective_data_size >= 0) return effective_data_size;
