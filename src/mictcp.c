@@ -9,7 +9,6 @@
 /*===============================Début variables globaux===============================*/
 mic_tcp_sock sockets[100]; //tableau des sockets pas encore utilisés
 int next_seq_num = 0;
-mic_tcp_pdu * pk;
 unsigned long MAX_TIME = 50;//us
 int ack_attendu = 0;
 /*===============================Fin variables globaux=================================*/
@@ -112,13 +111,14 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     //unsigned long current = get_now_time_usec;
     bool ack_received = false;
+    mic_tcp_pdu received_pdu;
     while (!ack_received){ //Attente de l'ACK
-        int recv = IP_recv(pk,&sockets[mic_sock].local_addr.ip_addr,&sockets[mic_sock].remote_addr.ip_addr,MAX_TIME);
+        int recv = IP_recv(&received_pdu,&sockets[mic_sock].local_addr.ip_addr,&sockets[mic_sock].remote_addr.ip_addr,MAX_TIME);
         //Pas de PDU avant timeout
         if (recv ==-1){
             sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
         } else{ //reception pdu avant timeout
-            if (pk->header.ack == 1 && pk->header.ack_num == pdu.header.seq_num){
+            if (received_pdu.header.ack == 1 && received_pdu.header.ack_num == pdu.header.seq_num){
                 ack_received = true;
             }
         }
