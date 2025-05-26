@@ -117,9 +117,9 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         //Pas de PDU avant timeout
         if (recv ==-1){
             sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
-        } else if (recv == 0){ //reception pdu avant timeout
+        } else{ //reception pdu avant timeout
             if (pk->header.ack == 1 && pk->header.ack_num == pdu.header.seq_num){
-                break;
+                ack_received = true;
             }
         }
     }
