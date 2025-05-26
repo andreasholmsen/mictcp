@@ -3,36 +3,43 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+
+
 //#define MAX_TIME 50 //us
 /*===============================Début variables globaux===============================*/
 mic_tcp_sock sockets[100]; //tableau des sockets pas encore utilisés
 int next_seq_num = 0;
 mic_tcp_pdu * pk;
 unsigned long MAX_TIME = 50;//us
-//int ack_attendu = 0;
+int ack_attendu = 0;
 /*===============================Fin variables globaux=================================*/
+
+#define NB_SOCKETS 100
+
+
+
+
+//tableau des sockets pas encore utilisés
+mic_tcp_sock sockets[NB_SOCKETS];
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
  * Retourne le descripteur du socket ou bien -1 en cas d'erreur
  */
-int mic_tcp_socket(start_mode sm){
-    int fd = 0;
-    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
 
-    if (initialize_components(sm) != -1){
-        //trouver le 1er socket non-utilisé = etat CLOSED
-        while(sockets[fd].state != CLOSED){
-            fd++;
-        }
-        //relier fd avec le nouveau socket crée/pret à être utilisé
-        sockets[fd].fd = fd;
-        //signaler l'utilisation du socket et renvoyer fd
-        sockets[fd].state = IDLE;
-        return fd;
-    } else {
-        return -1;
-    }
+int mic_tcp_socket(start_mode sm){
+   
+    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
+    if (initialize_components(sm) == -1) return -1;
+        
+    //trouver le 1er socket non-utilisé = etat CLOSED
+    int fd = 0;
+    while(sockets[fd].state != CLOSED) fd++;
+
+    //relier fd avec le nouveau socket crée/pret à être utilisé
+    sockets[fd].fd = fd;
+    sockets[fd].state = IDLE;
+    return fd;
 }
 
 /*
@@ -41,13 +48,12 @@ int mic_tcp_socket(start_mode sm){
  */
 int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 {
-   printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    if (sockets[socket].fd != socket){
-        return -1;
-    } else {
-        sockets[socket].local_addr = addr;
-        return 0;
-    }
+    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
+
+    if (sockets[socket].fd != socket) return -1;
+
+    sockets[socket].local_addr = addr;
+    return 0;
 }
 
 /*
@@ -84,6 +90,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr) //socket = fd
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    
     //Creation pdu
     mic_tcp_pdu pdu;
     pdu.payload.data = mesg;
@@ -116,8 +123,6 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
             }
         }
     }
-    
-
     return sent_size;
 }
 
@@ -130,6 +135,8 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    mic_tcp_pdu pdu;
+
     
     //déclaration struct pour stocker le message
     mic_tcp_pdu pdu;
@@ -139,7 +146,8 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 
     int effective_data_size = app_buffer_get(pdu.payload);
 
-    return effective_data_size; // TODO: Ou -1 si erreur
+    if (effective_data_size >= 0) return effective_data_size;
+    return -1;
 }
 
 /*
@@ -150,8 +158,8 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 int mic_tcp_close (int socket)
 {
     printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
-    //Change etat
-    return -1;
+    sockets[socket].state = CLOSING;
+    return 0;
 }
 
 /*
@@ -162,9 +170,29 @@ int mic_tcp_close (int socket)
  */
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_ip_addr remote_addr)
 {
-    //TODO: Verifier que le port dans pdu.header est actuellement utilisé. Passé par un bind
-
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    app_buffer_put(pdu.payload);
+
+    if (pdu.header.seq_num == ack_attendu) {
+        app_buffer_put(pdu.payload);
+        int ack_envoye = (ack_attendu+1) % 2;
+        ack_attendu = ack_envoye; // Prochaine ack à attendre
+        
+
+        mic_tcp_header header = {pdu.header.dest_port, pdu.header.source_port, 0, ack_envoye, 0, 0, 0};
+        mic_tcp_payload payload = {NULL, 0};
+        mic_tcp_pdu pdu_envoye = {header, payload};
+
+        IP_send(pdu_envoye, remote_addr);
+
+
+    } 
+
+    
 
 }
+
+
+
+
+
+
