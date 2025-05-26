@@ -1,13 +1,14 @@
 #include <mictcp.h>
 #include <api/mictcp_core.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 //#define MAX_TIME 50 //us
 /*===============================Début variables globaux===============================*/
 mic_tcp_sock sockets[100]; //tableau des sockets pas encore utilisés
 int next_seq_num = 0;
 mic_tcp_pdu * pk;
-unsigned long MAX_TIME 50 //us
+unsigned long MAX_TIME = 50;//us
 //int ack_attendu = 0;
 /*===============================Fin variables globaux=================================*/
 
@@ -97,12 +98,12 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     next_seq_num = (next_seq_num + 1)%2;
 
      //Activation timer
-    unsigned long start = get_now_time_usec;
+    //unsigned long start = get_now_time_usec;
 
     //Emission du pdu
     int sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
 
-    unsigned long current = get_now_time_usec;
+    //unsigned long current = get_now_time_usec;
     bool ack_received = false;
     while (!ack_received){ //Attente de l'ACK
         int recv = IP_recv(pk,&sockets[mic_sock].local_addr.ip_addr,&sockets[mic_sock].remote_addr.ip_addr,MAX_TIME);
@@ -110,7 +111,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         if (recv ==-1){
             sent_size = IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
         } else if (recv == 0){ //reception pdu avant timeout
-            if (*pk.header.ack == 1 && *pk.header.ack_num == pdu_header.seq_num){
+            if (pk->header.ack == 1 && pk->header.ack_num == pdu.header.seq_num){
                 break;
             }
         }
