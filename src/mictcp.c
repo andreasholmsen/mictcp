@@ -50,6 +50,7 @@ int mic_tcp_socket(start_mode sm) {
 
     sockets[fd].local_addr.ip_addr.addr = "localhost";
     sockets[fd].local_addr.ip_addr.addr_size = sizeof("localhost");
+
     return fd;
 }
 
@@ -97,6 +98,12 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     sockets[socket].remote_addr = addr;
     sockets[socket].state = ESTABLISHED;
 
+
+    // Init de fenetre glissant:
+    for (int i = 0; i < sizeof(fg)/sizeof(fg[0]); i++) fg[i] = 0;
+
+
+
     return 0;
 }
 
@@ -136,10 +143,12 @@ int mic_tcp_send(int mic_sock, char* mesg, int mesg_size)
 
             if(need_to_resend()) { // Si besoin de retransmettre
                  IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
+                 printf("RETRANSMISSION\n");
                  packets_sent++;
                  continue; //Recommence l'attente de ACK
             }
 
+            printf("DROPPING PACKET\n");
             //Si pas besoin de retransmettre, on met à jour le tableau, et on fini le boucle
             fg[packets_sent%PDU_ENVOYE] = 0;
            break;
