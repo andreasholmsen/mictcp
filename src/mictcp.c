@@ -6,9 +6,10 @@
 //#define MAX_TIME 50 //us
 /*===============================Début variables globaux===============================*/
 int next_seq_num = 0;
-unsigned long MAX_TIME = 1000;//ms
 int seq_attendu = 0;
-int packets_sent = 0;
+unsigned long MAX_TIME = 1000;//ms
+
+//int packets_sent = 0;
 /*===============================Fin variables globaux=================================*/
 
 #define NB_SOCKETS 10
@@ -121,10 +122,9 @@ int mic_tcp_send(int mic_sock, char* mesg, int mesg_size)
 
     int ack_received = 0;
     while (!ack_received) {
-        printf("hei");
         int recv = IP_recv(pk, loc_addr, rmt_addr, MAX_TIME);
         if (recv == -1) {
-            printf("RETRANSMIT");
+           // printf("RETRANSMIT");
             continue;
         };
 
@@ -185,7 +185,7 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     printf("[MIC-TCP] Appel de la fonction: %s\n", __FUNCTION__);
     
     if (pdu.header.seq_num == seq_attendu) {
-        printf("PACKET RECIEVED\n");
+       // printf("PACKET RECIEVED\n");
         app_buffer_put(pdu.payload);
         seq_attendu = (seq_attendu+1) % 2;
     }
