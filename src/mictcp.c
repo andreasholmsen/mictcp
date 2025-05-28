@@ -129,7 +129,7 @@ int mic_tcp_send(int mic_sock, char* mesg, int mesg_size)
         };
 
         if (pk->header.ack && pk->header.ack_num == next_seq_num) {
-            printf("ACK RECIEVED, packets sent: %d\n", packets_sent++);
+           // printf("ACK RECIEVED, packets sent: %d\n", packets_sent++);
             next_seq_num = (next_seq_num + 1) % 2;
             break;
         }
