@@ -3,14 +3,13 @@
 #include <stdio.h>
 #include <string.h> // Pour memset
 
-//#define MAX_TIME 50 //us
-/*===============================Début variables globaux===============================*/
+/*===============================Début variables globales===============================*/
 int next_seq_num = 0;
 int seq_attendu = 0;
 unsigned long MAX_TIME = 1;//ms
 
-int packets_sent = 0;
-/*===============================Fin variables globaux=================================*/
+//int packets_sent = 0;
+/*===============================Fin variables globales=================================*/
 
 #define NB_SOCKETS 10
 #define MAX_PAYLOAD_SIZE 1000000
