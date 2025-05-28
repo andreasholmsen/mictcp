@@ -1,22 +1,30 @@
 #include <mictcp.h>
 #include <api/mictcp_core.h>
 #include <stdio.h>
-#include <string.h> // Pour memset
+#include <string.h>
+
+#define NB_SOCKETS 10
+#define MAX_PAYLOAD_SIZE 1000000
+#define ADDRESS_SIZE 16
+#define PDU_ENVOYE 10
 
 /*===============================Début variables globales===============================*/
 int next_seq_num = 0;
 int seq_attendu = 0;
 unsigned long MAX_TIME = 1;//ms
 
-//int packets_sent = 0;
+int packets_sent = 0;
+int fg[PDU_ENVOYE];
 /*===============================Fin variables globales=================================*/
 
-#define NB_SOCKETS 10
-#define MAX_PAYLOAD_SIZE 1000000
-#define ADDRESS_SIZE 16
 
 //tableau des sockets pas encore utilisés
 mic_tcp_sock sockets[NB_SOCKETS];
+
+int need_to_resend() {
+    return (int) rand();
+}
+
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -123,18 +131,26 @@ int mic_tcp_send(int mic_sock, char* mesg, int mesg_size)
     rmt_addr->addr_size = ADDRESS_SIZE;
 
     while (1) {
-        int recv = IP_recv(ack_pdu, loc_addr, rmt_addr, MAX_TIME);
-        if (recv == -1) {
-            // printf("RETRANSMIT");
-            IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
-            continue;
+        int recv = IP_recv(ack_pdu, loc_addr, rmt_addr, MAX_TIME); // Recoit le ACK
+        if (recv == -1) { // Si timeout
+
+            if(need_to_resend()) { // Si besoin de retransmettre
+                 IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
+                 packets_sent++;
+                 continue; //Recommence l'attente de ACK
+            }
+
+            //Si pas besoin de retransmettre, on met à jour le tableau, et on fini le boucle
+            fg[packets_sent%PDU_ENVOYE] = 0;
+           break;
         } else if (ack_pdu->header.ack && ack_pdu->header.ack_num == next_seq_num) {
-            printf("ACK RECIEVED, packets sent: %d\n", packets_sent++);
+            printf("ACK RECIEVED, packets sent: %d\n", packets_sent);
             next_seq_num = (next_seq_num + 1) % 2;
+            fg[packets_sent%PDU_ENVOYE] = 1;
             break;
         }
     }
-
+    packets_sent++;
     return sent_size;
 }
 
