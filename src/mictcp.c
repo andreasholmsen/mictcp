@@ -14,20 +14,13 @@ int next_seq_num = 0;
 int seq_attendu = 0;
 unsigned long MAX_TIME = 1;//ms
 int packets_sent = 0;
-float max_pertes = 1/5;
-float taux_de_pertes = 0;
-int num_pertes = 0;
+int max_pertes = 20;
 int fg[PDU_ENVOYE];
 /*===============================Fin variables globales=================================*/
 
 
 //tableau des sockets pas encore utilisés
 mic_tcp_sock sockets[NB_SOCKETS];
-
-int need_to_resend() {
-    return (int) rand();
-}
-
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -53,6 +46,10 @@ int mic_tcp_socket(start_mode sm) {
 
     sockets[fd].local_addr.ip_addr.addr = "localhost";
     sockets[fd].local_addr.ip_addr.addr_size = sizeof("localhost");
+
+    // Init de fenetre glissant:
+    for (int i = 0; i < sizeof(fg)/sizeof(fg[0]); i++) fg[i] = 0;
+
 
     return fd;
 }
@@ -102,10 +99,6 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     sockets[socket].state = ESTABLISHED;
 
 
-    // Init de fenetre glissant:
-    for (int i = 0; i < sizeof(fg)/sizeof(fg[0]); i++) fg[i] = 0;
-
-
 
     return 0;
 }
@@ -115,11 +108,13 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
  * A être utilisée dans mic_tcp_send()
  */
  int need_to_resend(){
-    num_pertes = 0;
+    int num_pertes = 0;
     for (int i=0;i<PDU_ENVOYE;i++){
-        num_pertes += fg[i];
+        num_pertes += !fg[i];
     }
-    taux_de_pertes = num_pertes/PDU_ENVOYE;
+
+    int taux_de_pertes = num_pertes*PDU_ENVOYE;
+    printf("taux : %d,  num: %d, max: %d\n", taux_de_pertes, num_pertes, max_pertes);
     if (taux_de_pertes <= max_pertes){ //faux
         return 0;
     } else { //vrai
@@ -161,6 +156,7 @@ int mic_tcp_send(int mic_sock, char* mesg, int mesg_size)
         int recv = IP_recv(ack_pdu, loc_addr, rmt_addr, MAX_TIME); // Recoit le ACK
         if (recv == -1) { // Si timeout
 
+            printf("%d\n", need_to_resend());
             if(need_to_resend()) { // Si besoin de retransmettre
                  IP_send(pdu, sockets[mic_sock].remote_addr.ip_addr);
                  printf("RETRANSMISSION\n");
