@@ -3,17 +3,22 @@
 #include <stdio.h>
 #include <string.h> // Pour memset
 
+#define NB_SOCKETS 10
+#define MAX_PAYLOAD_SIZE 1000000
+#define ADDRESS_SIZE 16
+#define PDU_ENVOYE 10
+
 /*===============================Début variables globales===============================*/
 int next_seq_num = 0;
 int seq_attendu = 0;
 unsigned long MAX_TIME = 1;//ms
 
-//int packets_sent = 0;
+int packets_sent = 0;
+float max_pertes = 1/5;
+float taux_de_pertes = 0;
+int num_pertes = 0;
+int fg[PDU_ENVOYE];
 /*===============================Fin variables globales=================================*/
-
-#define NB_SOCKETS 10
-#define MAX_PAYLOAD_SIZE 1000000
-#define ADDRESS_SIZE 16
 
 //tableau des sockets pas encore utilisés
 mic_tcp_sock sockets[NB_SOCKETS];
@@ -91,6 +96,23 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 
     return 0;
 }
+
+/*
+ * Calcul de condition de resend 
+ * A être utilisée dans mic_tcp_send()
+ */
+ int need_to_resend(){
+    num_pertes = 0;
+    for (int i=0;i<PDU_ENVOYE;i++){
+        num_pertes += fg[i];
+    }
+    taux_de_pertes = num_pertes/PDU_ENVOYE;
+    if (taux_de_pertes <= max_pertes){ //faux
+        return 0;
+    } else { //vrai
+        return 1;
+    }
+ }
 
 /*
  * Permet de réclamer l’envoi d’une donnée applicative
