@@ -6,7 +6,7 @@
 
 #define NB_SOCKETS 10 // Nb de sockets actifs À la fois
 #define MAX_PAYLOAD_SIZE 1000000 // Taille d'une PDU receptrice
-#define ADDRESS_SIZE 16 // Taille d'une addresse IP
+#define ADDRESS_SIZE 32 // Taille d'une addresse IP
 #define HISTPDUSIZE 10 // Taille de histPDU[]
 #define MAXTIME 1 // Max temps d'attende de reception ACK (en ms)
 #define POURCENTAGEMAXPERTE 20 // pourcentage de perte acceptable
@@ -40,14 +40,27 @@ int mic_tcp_socket(start_mode sm) {
     if (fd >= NB_SOCKETS) return -1;
     
     // Init de socket
-    memset(&sockets[fd], 0, sizeof(sockets[fd]));
+    memset(&sockets[fd], 0, sizeof(mic_tcp_sock));
     sockets[fd].fd = fd;
     sockets[fd].state = IDLE;
 
-    sockets[fd].local_addr.ip_addr.addr = "localhost";
-    sockets[fd].local_addr.ip_addr.addr_size = sizeof("localhost");
+    // Allocation address locale
+    sockets[fd].local_addr.ip_addr.addr = malloc(ADDRESS_SIZE);
+    if (sockets[fd].local_addr.ip_addr.addr == NULL) return -1;
+    memset(sockets[fd].local_addr.ip_addr.addr, 0, ADDRESS_SIZE);
+    sockets[fd].local_addr.ip_addr.addr_size = ADDRESS_SIZE;
 
-    // Init de histoire PDU:
+    // Allocation address remote
+    sockets[fd].remote_addr.ip_addr.addr = malloc(ADDRESS_SIZE);
+    if (sockets[fd].remote_addr.ip_addr.addr == NULL) return -1;
+    memset(sockets[fd].remote_addr.ip_addr.addr, 0, ADDRESS_SIZE);
+    sockets[fd].remote_addr.ip_addr.addr_size = ADDRESS_SIZE;
+
+    //Ports
+    sockets[fd].local_addr.port = 0;
+    sockets[fd].remote_addr.port = 0;
+
+    // Init l'histoire PDU:
     for (int i = 0; i < HISTPDUSIZE; i++) histPDU[i] = 0;
 
     return fd;
@@ -64,6 +77,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr){
     if (socket < 0 || socket >= NB_SOCKETS || sockets[socket].fd != socket) return -1;
 
     sockets[socket].local_addr = addr;
+    sockets[socket].local_addr.ip_addr.addr_size = sizeof(sockets[socket].local_addr.ip_addr.addr);
 
     return 0;
 }
@@ -77,55 +91,53 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
 
     if (socket < 0 || socket >= NB_SOCKETS || sockets[socket].fd != socket) return -1;
+    // Prep rec SYN
+    mic_tcp_header synHeader = {0, 0, 0, 0, 0, 0, 0};
+    mic_tcp_payload synPayload = {NULL, 0};
+    mic_tcp_pdu syn = {synHeader, synPayload};
 
-    //*addr = sockets[socket].remote_addr; // Association d'addresse
+    while (1) {
+        perror("Waiting for signal...");
+        int recv = IP_recv(&syn, &sockets[socket].local_addr.ip_addr, &sockets[socket].remote_addr.ip_addr, 60*1000);
+        printf("RECV : %d\n", recv);
+        if (recv != 0) continue;
 
-    //Prep de SYN
-    mic_tcp_pdu syn;
+        if (!syn.header.syn || syn.header.ack || syn.header.fin) continue;
+        sockets[socket].state = SYN_RECEIVED;
+        // Prep envoye SynAck
+        printf("SEQ %d, ACK %d\n", seqEnvoye, syn.header.seq_num+1);
+        mic_tcp_header synAckHeader = {sockets[socket].local_addr.port, syn.header.source_port, seqEnvoye, syn.header.seq_num+1, 1, 1, 0};
+        mic_tcp_payload synAckPayload = {NULL, 0};
+        mic_tcp_pdu synAck = {synAckHeader, synAckPayload};
 
-    while(1) {
-        printf("WAITING...\n");
-        int recv = IP_recv(&syn, &sockets[socket].local_addr.ip_addr, NULL, 10000);
-        printf("SYN RECEIVED: seq nr%d, ack nr %d\n", syn.header.seq_num, syn.header.ack_num);
-
-        if (recv == -1) continue;
+        // Envoye SynAck
+        IP_send(synAck, sockets[socket].remote_addr.ip_addr);
         
-        if (syn.header.syn) {
-            sockets[socket].state = SYN_RECEIVED;
+        // Prep recu ACK
+        mic_tcp_header ackHeader = {0, 0, 0, 0, 0, 0, 0};
+        mic_tcp_payload ackPayload = {NULL, 0};
+        mic_tcp_pdu ack = {ackHeader, ackPayload};
 
-           //Creation de SYNACK
-            mic_tcp_header synAckHeader = {sockets[socket].local_addr.port, syn.header.source_port, seqEnvoye, (syn.header.seq_num+1)%2,1,1,0};
-            mic_tcp_payload synAckPayload = {NULL, 0};
-            mic_tcp_pdu synAck = {synAckHeader, synAckPayload};
-            
-            
-            printf("SENT SYNACK: seq nr%d, ack nr %d\n", synAck.header.seq_num, synAck.header.ack_num);
-            int sendSize = IP_send(synAck, addr->ip_addr);
-            if (sendSize < 0) return -1;
-            
-            //Prep ack
-            mic_tcp_pdu ack;
+        // TODO: recv2 kaller på pdu_process_pdu istedet for å returnere som 0 av seg selv.
+        // blir stuck tror jeg. Forrige IP_recv litt høyere opp fungerer som den skal.
+        perror("ACK À RECEVOIR");
+        int recv2 = IP_recv(&ack, &sockets[socket].local_addr.ip_addr, &addr->ip_addr, 60*1000);
+        perror("ACK RECU");
+        if (recv2 != 0) continue;
 
-            recv = IP_recv(&ack, &sockets[socket].local_addr.ip_addr, &(addr->ip_addr), 100000);
-
-        //    printf("ACK Receieved: seq nr%d, ack nr %d\n", ack.header.seq_num, ack.header.ack_num);
-            if (recv != 1 && ack.header.ack && ack.header.ack_num == (seqAttendu)) {
-                sockets[socket].state = ESTABLISHED;
-                sockets[socket].remote_addr =*addr;
-                seqEnvoye = (seqEnvoye+1)%2; // SEQ = 1
-
-                seqAttendu = (ack.header.ack_num+1)%2;
-            }
+        if(ack.header.ack && !ack.header.syn && !ack.header.fin) {
+            sockets[socket].state = ESTABLISHED;
+            seqAttendu = ack.header.seq_num;
+            seqEnvoye = (ack.header.ack+1)%2;
+            printf("SEQ ATTENDU %d, SEQ ENVOYER %d\n", seqAttendu, seqEnvoye);
+            return 0;
         }
-
-        return 0;
+        perror("Error ack received");
     }
 
-
-
-
     
-    return -1;
+    printf("SEQ ATTENDU %d, SEQ ENVOYER %d\n", seqAttendu, seqEnvoye);
+    return 0;
 }
 
 /*
@@ -136,47 +148,46 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    if (socket < 0 || socket >= NB_SOCKETS || sockets[socket].fd != socket) return -1;
-
-    sockets[socket].remote_addr = addr;
-
-    //Creation de SYN
-    mic_tcp_header synHeader = {sockets[socket].local_addr.port, addr.port, seqEnvoye, 0, 1,0,0}; // SYN = 1
+   
+    // Creation SYN
+    mic_tcp_header synHeader = {socket[sockets].local_addr.port, addr.port, 0, 0, 1,0,0};
     mic_tcp_payload synPayload = {NULL, 0};
     mic_tcp_pdu syn = {synHeader, synPayload};
 
-    // Prep de SYNACK
-    mic_tcp_pdu synAck;
-
+    // Send SYN
+    printf("SEQ %d, ACK %d\n", 0, 0);
     IP_send(syn, addr.ip_addr);
-    //printf("SENT SYN: seq nr%d, ack nr %d\n", syn.header.seq_num, syn.header.ack_num);
     sockets[socket].state = SYN_SENT;
 
-    while(1) {
-        int recv = IP_recv(&synAck, &(sockets[socket].local_addr.ip_addr), &addr.ip_addr, 100000);
-        printf("SYNACK RECIEVED: seq nr%d, ack nr %d\n", synAck.header.seq_num, synAck.header.ack_num);
+    //Prep recu synAck
+    mic_tcp_header synAckHeader = {0, 0, 0, 0, 0, 0, 0};
+    mic_tcp_payload synAckPayload = {NULL, 0};
+    mic_tcp_pdu synAck = {synAckHeader, synAckPayload};
 
-        if (recv > -1) break;
-    }
-    
+    //Attente SynAck
+    int recv = IP_recv(&synAck, &sockets[socket].local_addr.ip_addr, &sockets[socket].remote_addr.ip_addr, 60*1000);
+    if (recv != 0) return -1;
 
-    if (synAck.header.syn && synAck.header.ack && synAck.header.ack_num == (seqEnvoye +1) % 2) { // si ACK = 1
-        seqEnvoye = (seqEnvoye+1)%2;
-        //Creation de ACK
-        mic_tcp_header ackHeader = {sockets[socket].local_addr.port, addr.port, seqEnvoye, (synAck.header.seq_num+1) %2, 0,1,0};
-        mic_tcp_payload ackPayload = {NULL, 0};
-        mic_tcp_pdu ack = {ackHeader, ackPayload};
+    if (!(synAck.header.syn && synAck.header.ack && !synAck.header.fin)) return -1;
 
-        printf("SENT ACK: seq nr%d, ack nr %d\n", ack.header.seq_num, ack.header.ack_num);
-        int result = IP_send(ack, addr.ip_addr);
-        if (result < 0) printf("ACK send failed\n");
+    // Creation ACK
+    mic_tcp_header ackHeader = {socket[sockets].local_addr.port, addr.port, 1, (synAck.header.seq_num+1)%2, 0,1,0};
+    mic_tcp_payload ackPayload = {NULL, 0};
+    mic_tcp_pdu ack = {ackHeader, ackPayload};
 
-        sockets[socket].state = ESTABLISHED;
-        seqEnvoye = (seqEnvoye + 1) % 2; // SEQ POUR PREMIER TRANSFERT = 1
-        return 0;
-    }
+    printf("SEQ %d, ACK %d\n", ackHeader.seq_num, syn.header.seq_num+1);
+    IP_send(ack, addr.ip_addr);
 
-    return -1;
+
+    seqAttendu = ack.header.ack_num;
+    seqEnvoye = ack.header.seq_num;
+
+    sockets[socket].remote_addr = addr;
+    sockets[socket].state = ESTABLISHED;
+
+    printf("SEQ ATTENDU %d, SEQ À ENVOYER %d\n", seqAttendu, seqEnvoye);
+
+    return 0;
 }
 
 /*
@@ -268,9 +279,12 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
  */
 int mic_tcp_close (int socket)
 {
+    printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
     if (socket < 0 || socket >= NB_SOCKETS || sockets[socket].fd != socket) return -1;
 
-    printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
+    
+    free(sockets[socket].local_addr.ip_addr.addr);
+    free(sockets[socket].remote_addr.ip_addr.addr);
     sockets[socket].state = CLOSED;
     return 0;
 }
@@ -283,13 +297,16 @@ int mic_tcp_close (int socket)
  */
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_ip_addr remote_addr)
 {
-    printf("[MIC-TCP] Appel de la fonction: %s\n", __FUNCTION__);
+    perror("CALL PROCESSED PDU");
+    //printf("[MIC-TCP] Appel de la fonction: %s\n", __FUNCTION__);
     //printf("seq: %d, attendu: %d \n", pdu.header.seq_num, seqAttendu);
 
-
-
+    //Ne pas envoyer si dans phase d'établissement
+    if (pdu.header.syn || (pdu.header.syn && pdu.header.ack) || nbPacketsSent == 0) return;
+    // Ne rien faire si seulement un ack
+    if (pdu.header.ack && !pdu.header.syn && !pdu.header.fin) return;
     if (pdu.header.seq_num == seqAttendu) {
-        //printf("PACKET RECIEVED\n");
+        perror("PACKET RECEIVED\n");
         seqAttendu = (seqAttendu+1) % 2;
         app_buffer_put(pdu.payload); 
     }
@@ -300,7 +317,7 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     mic_tcp_pdu ack = {ackHeader, ackPayload};
 
     int result = IP_send(ack, remote_addr);
-    if (result < 0) printf("ACK send failed\n");
+    if (result < 0) perror("ACK send failed\n");
     
 }
 
