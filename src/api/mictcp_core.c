@@ -139,6 +139,7 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remot
     if(initialized == -1) {
         return -1;
     }
+
     /* Compute the number of entire seconds */
     tv.tv_sec = timeout / 1000;
     /* Convert the remainder to microseconds */
@@ -147,16 +148,17 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remot
     /* Create a reception buffer */
     int buffer_size = API_HD_Size + pk->payload.size;
     char *buffer = malloc(buffer_size);
-    
-    //ERROR HERE
+
     if ((setsockopt(sys_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) >= 0) {
        result = recvfrom(sys_socket, buffer, buffer_size, 0, (struct sockaddr *)&tmp_addr, &tmp_addr_size);
     }
+
     if (result != -1) {
         /* Create the mic_tcp_pdu */
         memcpy (&(pk->header), buffer, API_HD_Size);
         pk->payload.size = result - API_HD_Size;
         memcpy (pk->payload.data, buffer + API_HD_Size, pk->payload.size);
+
         /* Generate a stub address */
         if (remote_addr != NULL) {
             inet_ntop(AF_INET, &(tmp_addr.sin_addr),remote_addr->addr,remote_addr->addr_size);
@@ -173,9 +175,12 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remot
 
         /* Correct the receved size */
         result -= API_HD_Size;
+
     }
+
     /* Free the reception buffer */
     free(buffer);
+
     return result;
 }
 
