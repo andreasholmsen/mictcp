@@ -140,6 +140,19 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
     return 0;
 }
 
+/* Permet de calculer le max perte en prenant en compte
+ * les propositions côté serveur et côté client  
+*/
+
+int max_perte_negocie(int max_perte_serv, int max_perte_client){
+    if (max_perte_serv >= max_perte_client){ //client impose le maximum perte
+        return max_perte_client;
+    } else {
+        int moyenne = (max_perte_serv + max_perte_client)/2
+        return moyenne;
+    }   
+} 
+
 /*
  * Permet de réclamer l’établissement d’une connexion
  * Retourne 0 si la connexion est établie, et -1 en cas d’échec
