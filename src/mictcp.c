@@ -110,7 +110,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 
     if (socket < 0 || socket >= NB_SOCKETS || sockets[socket].fd != socket) return -1;
     // Prep rec SYN
-    mic_tcp_header synHeader = {0, 0, 0, 0, 0, 0, 0};
+    mic_tcp_header synHeader = {0, 0, 0, 0, 0, 0, 0,0};
     mic_tcp_payload synPayload = {NULL, 0};
     mic_tcp_pdu syn = {synHeader, synPayload};
 
@@ -124,7 +124,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
         sockets[socket].state = SYN_RECEIVED;
         // Prep envoye SynAck
         printf("SEQ %d, ACK %d\n", seqEnvoye, syn.header.seq_num+1);
-        mic_tcp_header synAckHeader = {sockets[socket].local_addr.port, syn.header.source_port, seqEnvoye, syn.header.seq_num+1, 1, 1, 0};
+        mic_tcp_header synAckHeader = {sockets[socket].local_addr.port, syn.header.source_port, seqEnvoye, syn.header.seq_num+1, 1, 1, 0,0};
         mic_tcp_payload synAckPayload = {NULL, 0};
         mic_tcp_pdu synAck = {synAckHeader, synAckPayload};
 
@@ -132,7 +132,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
         IP_send(synAck, sockets[socket].remote_addr.ip_addr);
         
         // Prep recu ACK
-        mic_tcp_header ackHeader = {0, 0, 0, 0, 0, 0, 0};
+        mic_tcp_header ackHeader = {0, 0, 0, 0, 0, 0, 0, 0};
         mic_tcp_payload ackPayload = {NULL, 0};
         mic_tcp_pdu ack = {ackHeader, ackPayload};
 
@@ -153,8 +153,6 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
         perror("Error ack received");
     }
 
-    printf("SEQ ATTENDU %d, SEQ ENVOYER %d\n", seqAttendu, seqEnvoye);
-
     //Determination de max perte propose par le serveur
     int max_perte_serv;
     demande_max_perte(&max_perte_serv);
@@ -164,6 +162,8 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
     mic_tcp_payload maxPayload = {NULL, 0};
     mic_tcp_pdu max = {maxHeader, maxPayload};
     IP_send(max,sockets[socket].remote_addr.ip_addr);
+
+    printf("SEQ ATTENDU %d, SEQ ENVOYER %d\n", seqAttendu, seqEnvoye);
 
     return 0;
 }
@@ -191,7 +191,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    
     // Creation SYN
-    mic_tcp_header synHeader = {socket[sockets].local_addr.port, addr.port, 0, 0, 1,0,0};
+    mic_tcp_header synHeader = {socket[sockets].local_addr.port, addr.port, 0, 0, 1,0,0,0};
     mic_tcp_payload synPayload = {NULL, 0};
     mic_tcp_pdu syn = {synHeader, synPayload};
 
@@ -201,7 +201,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     sockets[socket].state = SYN_SENT;
 
     //Prep recu synAck
-    mic_tcp_header synAckHeader = {0, 0, 0, 0, 0, 0, 0};
+    mic_tcp_header synAckHeader = {0, 0, 0, 0, 0, 0, 0, 0};
     mic_tcp_payload synAckPayload = {NULL, 0};
     mic_tcp_pdu synAck = {synAckHeader, synAckPayload};
 
@@ -212,7 +212,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     if (!(synAck.header.syn && synAck.header.ack && !synAck.header.fin)) return -1;
 
     // Creation ACK
-    mic_tcp_header ackHeader = {socket[sockets].local_addr.port, addr.port, 1, (synAck.header.seq_num+1)%2, 0,1,0};
+    mic_tcp_header ackHeader = {socket[sockets].local_addr.port, addr.port, 1, (synAck.header.seq_num+1)%2, 0,1,0,0};
     mic_tcp_payload ackPayload = {NULL, 0};
     mic_tcp_pdu ack = {ackHeader, ackPayload};
 
@@ -233,7 +233,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     demande_max_perte(&max_perte_client);
 
     //Prep reception de max perte propose par le serveur
-    mic_tcp_header maxHeader = {0, 0, 0, 0, 0, 0, 0};
+    mic_tcp_header maxHeader = {0, 0, 0, 0, 0, 0, 0, 0};
     mic_tcp_payload maxPayload = {NULL, 0};
     mic_tcp_pdu max = {maxHeader, maxPayload};
 
@@ -271,7 +271,7 @@ int mic_tcp_send(int mic_sock, char* mesg, int mesg_size)
     
     if (mic_sock < 0 || mic_sock >= NB_SOCKETS || sockets[mic_sock].state != ESTABLISHED) return -1;
 
-    mic_tcp_header pduHeader = {sockets[mic_sock].local_addr.port, sockets[mic_sock].remote_addr.port, seqEnvoye, 0, 0, 0, 0,};
+    mic_tcp_header pduHeader = {sockets[mic_sock].local_addr.port, sockets[mic_sock].remote_addr.port, seqEnvoye, 0, 0, 0, 0, 0};
     mic_tcp_payload pduPayload = {mesg, mesg_size};
     mic_tcp_pdu pdu = {pduHeader, pduPayload};
 
@@ -359,10 +359,23 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     //printf("[MIC-TCP] Appel de la fonction: %s\n", __FUNCTION__);
     //printf("seq: %d, attendu: %d \n", pdu.header.seq_num, seqAttendu);
 
+    pdu.remote_addr.ip_addr.addr_size = sizeof(pdu.remote_addr.ip_addr.addr);//prevent seg fault
+
     //Ne pas envoyer si dans phase d'établissement
     if (pdu.header.syn || (pdu.header.syn && pdu.header.ack) || nbPacketsSent == 0) return;
-    // Ne rien faire si seulement un ack
-    if (pdu.header.ack && !pdu.header.syn && !pdu.header.fin) return;
+    // si seulement ack, commence phase de négociation
+    if (pdu.header.ack && !pdu.header.syn && !pdu.header.fin){
+        printf("Ack recu\n ");
+        //Determination de max perte propose par le serveur
+        int max_perte_serv;
+        demande_max_perte(&max_perte_serv);
+   
+        //Prep envoie de max perte propose par le serveur
+        mic_tcp_header maxHeader = {pdu.header.dest_port, pdu.header.source_port, seqEnvoye, pdu.header.seq_num+1, 0, 0, 0,max_perte_serv}; //champ 3 et 4 à modifier
+        mic_tcp_payload maxPayload = {NULL, 0};
+        mic_tcp_pdu max = {maxHeader, maxPayload};
+        IP_send(max,remote_addr);
+    } 
     if (pdu.header.seq_num == seqAttendu) {
         perror("PACKET RECEIVED\n");
         seqAttendu = (seqAttendu+1) % 2;
@@ -370,7 +383,7 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     }
 
     //Creation de ACK
-    mic_tcp_header ackHeader = {pdu.header.dest_port, pdu.header.source_port, seqEnvoye, seqAttendu, 0,1,0};
+    mic_tcp_header ackHeader = {pdu.header.dest_port, pdu.header.source_port, seqEnvoye, seqAttendu, 0,1,0,0};
     mic_tcp_payload ackPayload = {NULL, 0};
     mic_tcp_pdu ack = {ackHeader, ackPayload};
 
