@@ -6,8 +6,8 @@
 
 int main(int argc, char *argv[])
 {
-
     int sockfd = 0;
+
     char chaine[MAX_SIZE];
     mic_tcp_sock_addr addr;
     addr.ip_addr.addr = argv[1];
