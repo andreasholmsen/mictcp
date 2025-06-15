@@ -87,7 +87,6 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     sockets[socket].remote_addr = addr;
     sockets[socket].state = ESTABLISHED;
 
-    set_loss_rate(20);
     return 0;
 }
 
