@@ -129,6 +129,7 @@ int IP_send(mic_tcp_pdu pk, mic_tcp_ip_addr addr)
 
 int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remote_addr, unsigned long timeout)
 {
+
     int result = -1;
 
     struct timeval tv;
@@ -139,38 +140,40 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remot
     if(initialized == -1) {
         return -1;
     }
-
+  
     /* Compute the number of entire seconds */
     tv.tv_sec = timeout / 1000;
     /* Convert the remainder to microseconds */
     tv.tv_usec = (timeout - tv.tv_sec * 1000) * 1000;
-
+    
     /* Create a reception buffer */
     int buffer_size = API_HD_Size + pk->payload.size;
     char *buffer = malloc(buffer_size);
+ 
 
     if ((setsockopt(sys_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) >= 0) {
        result = recvfrom(sys_socket, buffer, buffer_size, 0, (struct sockaddr *)&tmp_addr, &tmp_addr_size);
     }
 
     if (result != -1) {
+          
         /* Create the mic_tcp_pdu */
         memcpy (&(pk->header), buffer, API_HD_Size);
         pk->payload.size = result - API_HD_Size;
         memcpy (pk->payload.data, buffer + API_HD_Size, pk->payload.size);
-
+           
         /* Generate a stub address */
         if (remote_addr != NULL) {
             inet_ntop(AF_INET, &(tmp_addr.sin_addr),remote_addr->addr,remote_addr->addr_size);
-            //remote_addr->addr = "localhost";
             remote_addr->addr_size = strlen(remote_addr->addr) + 1; // don't forget '\0'
         }
-
+        
         if (local_addr != NULL) {
             local_addr->addr = "localhost";
             local_addr->addr_size = strlen(local_addr->addr) + 1; // don't forget '\0'
         }
 
+        
         printf("[MICTCP-CORE] Réception d'un paquet IP de taille %d provenant de %s\n", result, remote_addr->addr);
 
         /* Correct the receved size */
