@@ -9,13 +9,14 @@
 #define ADDRESS_SIZE 32 // Taille d'une addresse IP
 #define HISTPDUSIZE 10 // Taille de histPDU[]
 #define MAXTIME 1 // Max temps d'attende de reception ACK (en ms)
-#define POURCENTAGEMAXPERTE 20 // pourcentage de perte acceptable
+//#define POURCENTAGEMAXPERTE 20 // pourcentage de perte acceptable  
 
 /*===============================Début variables globales===============================*/
 int seqEnvoye = 0; // Prochaine SeqNum À envoyer par source
 int seqAttendu = 0; // Prochaine SeqNum attendu par puits
 int nbPacketsSent = 0; // Nb de packets envoyé en total
 int histPDU[HISTPDUSIZE]; // Tableau pour histoire de reussi des packets. 1 si reussi, 0 sinon
+int max_perte;
 /*===============================Fin variables globales=================================*/
 
 
@@ -81,6 +82,23 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr){
 
     return 0;
 }
+
+/* Demande de max perte, utilisé par serveur et client
+ * dans l'établissement de connéxion   
+*/
+
+void demande_max_perte(int * max_perte){
+    printf("Entre 0 et 100, je propose un max perte de :\n ");
+    while (1){
+        scanf("%d",max_perte);
+        if (*max_perte<0 || *max_perte > 100){
+            printf("Il faut un entier entre 0 et 100\n");
+            continue;
+        } else{
+            break;
+        } 
+    } 
+} 
 /*
  * Met le socket en état d'acceptation de connexions 
  * On peut ajouter au state un état d'acceptation
@@ -135,8 +153,18 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
         perror("Error ack received");
     }
 
-    
     printf("SEQ ATTENDU %d, SEQ ENVOYER %d\n", seqAttendu, seqEnvoye);
+
+    //Determination de max perte propose par le serveur
+    int max_perte_serv;
+    demande_max_perte(&max_perte_serv);
+   
+    //Prep envoie de max perte propose par le serveur
+    mic_tcp_header maxHeader = {sockets[socket].local_addr.port, syn.header.source_port, seqEnvoye, syn.header.seq_num+1, 0, 0, 0,max_perte_serv};
+    mic_tcp_payload maxPayload = {NULL, 0};
+    mic_tcp_pdu max = {maxHeader, maxPayload};
+    IP_send(max,sockets[socket].remote_addr.ip_addr);
+
     return 0;
 }
 
@@ -148,8 +176,8 @@ int max_perte_negocie(int max_perte_serv, int max_perte_client){
     if (max_perte_serv >= max_perte_client){ //client impose le maximum perte
         return max_perte_client;
     } else {
-        int moyenne = (max_perte_serv + max_perte_client)/2
-        return moyenne;
+        int moy = (max_perte_serv + max_perte_client)/2;
+        return moy;
     }   
 } 
 
@@ -200,6 +228,23 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 
     printf("SEQ ATTENDU %d, SEQ À ENVOYER %d\n", seqAttendu, seqEnvoye);
 
+    //Determination de max perte propose par le client
+    int max_perte_client;
+    demande_max_perte(&max_perte_client);
+
+    //Prep reception de max perte propose par le serveur
+    mic_tcp_header maxHeader = {0, 0, 0, 0, 0, 0, 0};
+    mic_tcp_payload maxPayload = {NULL, 0};
+    mic_tcp_pdu max = {maxHeader, maxPayload};
+
+    //Attente max
+    recv = IP_recv(&max, &sockets[socket].local_addr.ip_addr, &sockets[socket].remote_addr.ip_addr, 60*1000);
+    if (recv != 0) return -1;
+    if (max.header.syn || max.header.ack || max.header.fin) return -1;
+    if (max.header.max_perte < 0 || max.header.max_perte > 100) return -1; //unodvendig siden det sjekkes allerede i demande_max_perte ?
+
+    max_perte = max_perte_negocie(max_perte_client,max.header.max_perte);
+
     return 0;
 }
 
@@ -213,7 +258,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     for (int i=0;i<HISTPDUSIZE;i++) nbReussi += histPDU[i];
     int pourcentagePerte = (HISTPDUSIZE-nbReussi)*HISTPDUSIZE;
 
-    return 1*(pourcentagePerte >POURCENTAGEMAXPERTE);
+    return 1*(pourcentagePerte >max_perte);
  }
 
 /*

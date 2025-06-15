@@ -80,6 +80,7 @@ typedef struct mic_tcp_header
   unsigned char syn; /* flag SYN (valeur 1 si activé et 0 si non) */
   unsigned char ack; /* flag ACK (valeur 1 si activé et 0 si non) */
   unsigned char fin; /* flag FIN (valeur 1 si activé et 0 si non) */
+  unsigned char max_perte; /* proposition de max perte entre 0 et 100 */
 } mic_tcp_header;
 
 /*
