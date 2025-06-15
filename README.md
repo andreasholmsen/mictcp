@@ -2,7 +2,7 @@
 ## TPs BE Reseau - 3 MIC
 
 ## Versions
-Nous avons implémenté les 4 versions de mictcp, jusqu'au v4.2.
+Nous avons implémenté les 4 versions de mictcp, jusqu'au v4.1.
 
 ## Choix d'implémentation
 - Fiabilité partielle : Pour implémenter la fiabilité partielle du v3, nous avons parti du principe d'une fenêtre glissante, un tableau fg de taille 10, contenant les 10 derniers paquets envoyés et si ils ont bien été recu. 
